@@ -12,15 +12,10 @@ namespace TypeScriptDefinitionGenerator
 {
   public class Generator
   {
-    private IList<Type> _types;
-
-    private Func<Type, bool> _processBaseType;
-    private Func<Type, bool> _processType;
-
     private Dictionary<Type, TypeScriptType> _processedTypes = new Dictionary<Type, TypeScriptType>();
-    private Func<Type, string> _moduleNameGenerator;
 
     private HashSet<Type> _excludedTypes = new HashSet<Type>();
+    private GeneratorOptions _options;
 
     public Generator(params Type[] types)
       : this(types, t => types.Any(x => x.Assembly == t.Assembly), t => types.Any(x => x.Assembly == t.Assembly), t => t.Namespace)
@@ -29,38 +24,19 @@ namespace TypeScriptDefinitionGenerator
     }
 
     public Generator(IEnumerable<Type> types, Func<Type, bool> processType, Func<Type, bool> processBaseType, Func<Type, string> moduleNameGenerator)
+      : this(new GeneratorOptions
+      {
+        Types = types,
+        ModuleNameGenerator = moduleNameGenerator,
+        TypeFilter = processType,
+        BaseTypeFilter = processBaseType
+      })
     {
-      _types = types.ToList();
-      _processBaseType = processBaseType;
-      _processType = processType;
-      _moduleNameGenerator = moduleNameGenerator;
     }
 
-    private TypeScriptType ProcessType(CustomType tst)
+    public Generator(GeneratorOptions options)
     {
-      //ProcessTypeScriptType(tst.ClrType, tst);
-
-      BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly;
-
-      if (tst.IncludeInheritedProperties)
-      {
-        flags = BindingFlags.Instance | BindingFlags.Public;
-      }
-
-      var properties = tst.ClrType.GetProperties(flags);
-
-      foreach (var property in properties)
-      {
-        var propertyTst = ProcessTypeScriptType(property.PropertyType, (dynamic)GetTypeScriptType(property.PropertyType));
-
-        tst.Properties.Add(new TypeScriptProperty
-        {
-          Property = property,
-          Type = propertyTst
-        });
-      }
-
-      return tst;
+      _options = options;
     }
 
     private void ProcessProperties(CustomType tst)
@@ -130,7 +106,7 @@ namespace TypeScriptDefinitionGenerator
 
         _processedTypes.Add(tst.ClrType, processedType);
 
-        tst.Module = _moduleNameGenerator(t);
+        tst.Module = _options.ModuleNameGenerator(t);
       }
 
       return processedType;
@@ -161,7 +137,7 @@ namespace TypeScriptDefinitionGenerator
 
         if (baseType != null)
         {
-          if (_processBaseType(baseType))
+          if (_options.BaseTypeFilter(baseType))
           {
             var processedBaseType = ProcessTypeScriptType(baseType, (dynamic)GetTypeScriptType(baseType));
 
@@ -173,37 +149,47 @@ namespace TypeScriptDefinitionGenerator
 
         ProcessProperties(tst);
 
-        tst.Module = _moduleNameGenerator(t);
+        tst.Module = _options.ModuleNameGenerator(t);
 
-        if (t.IsGenericType && !t.IsGenericTypeDefinition)
-        {
-          var baseTypeGenericArguments = t.GetGenericArguments();
-          tst.GenericArguments = new List<TypeScriptType>();
+        ProcessGenericArguments(t, tst);
 
-          foreach (var arg in baseTypeGenericArguments)
-          {
-            var baseGenericArgTst = ProcessTypeScriptType(arg, (dynamic)GetTypeScriptType(arg));
+        ProcessNestedType(t, tst);
 
-            tst.GenericArguments.Add((TypeScriptType)baseGenericArgTst);
-          }
-        }
       }
 
       return processedType;
     }
 
+    private void ProcessNestedType(Type t, CustomType tst)
+    {
+      if (t.IsNestedPublic && t.DeclaringType != null)
+      {
+        var declaringTypeTst = ProcessTypeScriptType(t.DeclaringType, (dynamic)GetTypeScriptType(t.DeclaringType));
+        tst.DeclaringType = declaringTypeTst;
+      }
+    }
+
+    private void ProcessGenericArguments(Type t, CustomType tst)
+    {
+      if (t.IsGenericType && !t.IsGenericTypeDefinition)
+      {
+        var baseTypeGenericArguments = t.GetGenericArguments();
+        tst.GenericArguments = new List<TypeScriptType>();
+
+        foreach (var arg in baseTypeGenericArguments)
+        {
+          var baseGenericArgTst = ProcessTypeScriptType(arg, (dynamic)GetTypeScriptType(arg));
+
+          tst.GenericArguments.Add((TypeScriptType)baseGenericArgTst);
+        }
+      }
+    }
+
     private bool BaseTypeHasSameNameAsSubType(Type t, Type baseType)
     {
-      var idx = baseType.Name.IndexOf('`');
+      var baseTypename = TypeHelper.GetNameOfGenericType(baseType);
 
-      if (idx > 0)
-      {
-        var baseTypename = baseType.Name.Substring(0, idx);
-
-        return baseTypename == t.Name;
-      }
-
-      return false;
+      return baseTypename != null && baseTypename == t.Name;
     }
 
     private Type GetBaseType(Type t, out bool skippedBaseType)
@@ -286,7 +272,7 @@ namespace TypeScriptDefinitionGenerator
       }
       else
       {
-        var processType = _processType(type);
+        var processType = _options.TypeFilter(type);
 
         if (processType)
         {
@@ -309,20 +295,34 @@ namespace TypeScriptDefinitionGenerator
       return tst;
     }
 
-    public void Generate()
+    public string GenerateTypes()
     {
-      GenerateMapping();
+      var mapping = GenerateMapping();
+
+      var generator = new ClassDefinitionsGenerator(mapping);
+      var result = generator.Generate();
+
+      return result;
+    }
+
+
+    public string GenerateInterfaceDefinitions()
+    {
+      var mapping = GenerateMapping();
+
+      var generator = new InterfaceDefinitionsGenerator(mapping);
+      var result = generator.Generate();
+
+      return result;
     }
 
     internal IList<TypeScriptModule> GenerateMapping()
     {
-      foreach (var type in _types)
+      foreach (var type in _options.Types.ToList())
       {
         var tst = GetTypeScriptType(type);
 
         ProcessTypeScriptType(type, (dynamic)tst);
-
-        //ProcessType(tst);
       }
 
       var groupedByModule = _processedTypes.Values.OfType<IModuleMember>()
@@ -332,24 +332,6 @@ namespace TypeScriptDefinitionGenerator
           Module = m.Key,
           ModuleMembers = m.ToList()
         }).ToList();
-
-      var finalOutput = new StringBuilder();
-
-      foreach (var module in groupedByModule)
-      {
-        var generator = new ModuleScriptGenerator(module);
-
-        var result = generator.Generate();
-
-        finalOutput.Append(result);
-
-      }
-
-      var finalResult = finalOutput.ToString();
-
-      //Console.WriteLine(finalResult);
-
-      File.WriteAllText(@"E:\data\output.d.ts", finalResult);
 
       return groupedByModule;
     }

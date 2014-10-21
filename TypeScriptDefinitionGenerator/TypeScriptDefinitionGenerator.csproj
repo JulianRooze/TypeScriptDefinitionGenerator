@@ -39,11 +39,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="GeneratorOptions.cs" />
     <Compile Include="IndentedStringBuilder.cs" />
-    <Compile Include="ModuleScriptGenerator.cs" />
+    <Compile Include="ClassDefinitionsGenerator.cs" />
+    <Compile Include="ModuleNameGenerator.cs" />
+    <Compile Include="InterfaceDefinitionsGenerator.cs" />
+    <Compile Include="PropertyCommenter.cs" />
     <Compile Include="TypeHelper.cs" />
     <Compile Include="Generator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TypeNameGenerator.cs" />
     <Compile Include="TypeScriptTypes.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

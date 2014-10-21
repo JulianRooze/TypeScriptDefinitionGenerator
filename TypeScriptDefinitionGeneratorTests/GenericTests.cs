@@ -28,8 +28,8 @@ namespace TypeScriptDefinitionGeneratorTests
 
       var definition = (CustomType)modules[0].ModuleMembers.OfType<TypeScriptType>().Single(t => t.ClrType.Name == "NonGeneric1");
 
-      definition.BaseType.ClrType.Should().Be(typeof(GenericBase1<>));
-      definition.GenericArguments[0].Should().BeOfType<StringType>();
+      definition.BaseType.ClrType.Should().Be(typeof(GenericBase1<string>));
+      ((CustomType)definition.BaseType).GenericArguments[0].Should().BeOfType<StringType>();
     }
 
     public class GenericBase2<T>
@@ -144,6 +144,27 @@ namespace TypeScriptDefinitionGeneratorTests
       var definition1 = (CustomType)modules[0].ModuleMembers.OfType<TypeScriptType>().Single(t => t.ClrType.Name == "AnotherGenericBase4");
 
       definition1.BaseType.ClrType.Should().Be(typeof(GenericBaseBase4));
+    }
+
+    public class BaseClass
+    {
+
+    }
+
+    public class BaseClass<T> : BaseClass
+    {
+      public T Property { get; set; }
+    }
+
+    [TestMethod]
+    public void Test()
+    {
+      var generator = new Generator(typeof(BaseClass));
+
+      var modules = generator.GenerateMapping();
+
+
+
     }
 
   }

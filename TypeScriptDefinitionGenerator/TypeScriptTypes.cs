@@ -109,6 +109,8 @@ namespace TypeScriptDefinitionGenerator
     public IList<TypeScriptType> GenericArguments { get; set; }
 
     public bool IncludeInheritedProperties { get; set; }
+
+    public TypeScriptType DeclaringType { get; set; }
   }
 
   internal class AnyType : TypeScriptType

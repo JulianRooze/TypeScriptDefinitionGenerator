@@ -84,5 +84,20 @@ namespace TypeScriptDefinitionGenerator
       return nullableType != null && nullableType.IsEnum;
 
     }
+
+    internal static string GetNameOfGenericType(Type t)
+    {
+      var idx = t.Name.IndexOf('`');
+
+      if (idx > 0)
+      {
+        var baseTypename = t.Name.Substring(0, idx);
+
+        return baseTypename;
+      }
+
+      return null;
+    }
+
   }
 }
