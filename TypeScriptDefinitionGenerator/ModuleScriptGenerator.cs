@@ -44,6 +44,11 @@ namespace TypeScriptDefinitionGenerator
       return "number";
     }
 
+    private string GetTypeName(EnumType tst)
+    {
+      return tst.ClrType.Name;
+    }
+
     private string GetTypeName(StringType tst)
     {
       return "string";
@@ -117,6 +122,11 @@ namespace TypeScriptDefinitionGenerator
     private string GetModuleName(TypeScriptType type)
     {
       return "";
+    }
+
+    private string GetModuleName(EnumType type)
+    {
+      return type.Module + ".";
     }
 
     private string GetModuleName(CustomType type)

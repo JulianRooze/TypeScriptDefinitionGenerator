@@ -103,11 +103,11 @@ namespace TypeScriptDefinitionGenerator
     {
       TypeScriptType processedType;
 
-      if (!_processedTypes.TryGetValue(t, out processedType))
+      if (!_processedTypes.TryGetValue(tst.ClrType, out processedType))
       {
         processedType = tst;
 
-        _processedTypes.Add(t, processedType);
+        _processedTypes.Add(tst.ClrType, processedType);
       }
 
       return processedType;
@@ -307,7 +307,7 @@ namespace TypeScriptDefinitionGenerator
       foreach (var type in _processedTypes.Where(kv => kv.Value is IModuleMember))
       {
         var moduleMember = (IModuleMember)type.Value;
-        moduleMember.Module = _moduleNameGenerator(type.Key);
+        moduleMember.Module = _moduleNameGenerator(type.Value.ClrType);
       }
 
       var groupedByModule = _processedTypes.Values.OfType<IModuleMember>()
@@ -332,7 +332,7 @@ namespace TypeScriptDefinitionGenerator
 
       var finalResult = finalOutut.ToString();
 
-      Console.WriteLine(finalResult);
+      //Console.WriteLine(finalResult);
 
       File.WriteAllText(@"E:\data\output.d.ts", finalResult);
 
