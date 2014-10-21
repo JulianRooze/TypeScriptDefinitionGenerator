@@ -29,7 +29,7 @@ namespace TypeScriptDefinitionGenerator
 
     private void AppendWithIndentation(string template, params object[] args)
     {
-      _sb.AppendLine(new string(' ', _indentation) + string.Format(template, args));
+      _sb.AppendLine(new string('\t', _indentation) + string.Format(template, args));
     }
 
     public IndentedStringBuilder AppendLine(string template, params object[] args)

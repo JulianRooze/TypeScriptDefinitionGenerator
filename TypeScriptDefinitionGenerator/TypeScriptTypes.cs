@@ -10,6 +10,11 @@ namespace TypeScriptDefinitionGenerator
   internal class TypeScriptType
   {
     public Type ClrType { get; set; }
+
+    public override string ToString()
+    {
+      return ClrType != null ? this.GetType().Name + " : " + ClrType.ToString() : base.ToString();
+    }
   }
 
   interface IModuleMember
@@ -61,7 +66,9 @@ namespace TypeScriptDefinitionGenerator
 
   internal class DictionaryType : TypeScriptType
   {
+    public TypeScriptType ElementKeyType { get; set; }
 
+    public TypeScriptType ElementValueType { get; set; }
   }
 
   internal class ArrayType : TypeScriptType
@@ -99,7 +106,7 @@ namespace TypeScriptDefinitionGenerator
 
     public string Module { get; set; }
 
-    public IList<TypeScriptType> BaseTypeGenericArguments { get; set; }
+    public IList<TypeScriptType> GenericArguments { get; set; }
 
     public bool IncludeInheritedProperties { get; set; }
   }

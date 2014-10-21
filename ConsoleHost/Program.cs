@@ -35,7 +35,8 @@ namespace ConsoleHost
       var testType = typeof(Test);
 
       //var generator = new Generator(new[] { userType, createUser, typeof(RequestPasswordResetToken), typeof(GetShoppingCart), typeof(ShoppingCartResponse) }, t => t.Assembly == userType.Assembly, t => t.Assembly == userType.Assembly, t => t.Namespace);
-      var generator = new Generator(userType.Assembly.GetExportedTypes() , t => t.Assembly == userType.Assembly, t => t.Assembly == userType.Assembly, t => t.Namespace);
+      var generator = new Generator(userType.Assembly.GetExportedTypes(), t => t.Assembly == userType.Assembly, t => t.Assembly == userType.Assembly, t => t.Namespace);
+      //var generator = new Generator(new[] { typeof(CreateUserGroup) }, t => t.Assembly == userType.Assembly, t => t.Assembly == userType.Assembly, t => t.Namespace);
       generator.Generate();
 
     }

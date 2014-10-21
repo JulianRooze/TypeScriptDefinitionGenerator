@@ -64,6 +64,23 @@ namespace TypeScriptDefinitionGenerator
       return "boolean";
     }
 
+    private string GetTypeName(GenericTypeParameter tst)
+    {
+      return tst.ClrType.Name;
+    }
+
+    private string GetTypeName(DictionaryType tst)
+    {
+      return string.Format("{{ [ key : {2}{0} ] : {3}{1} }}",
+        GetTypeName((dynamic)tst.ElementKeyType), GetTypeName((dynamic)tst.ElementValueType),
+        GetModuleName((dynamic)tst.ElementKeyType), GetModuleName((dynamic)tst.ElementValueType));
+    }
+
+    private string GetTypeName(ArrayType tst)
+    {
+      return GetTypeName((dynamic)tst.ElementType) + "[]";
+    }
+
     private string GetTypeName(TypeScriptType tst)
     {
       return "any";
@@ -77,11 +94,13 @@ namespace TypeScriptDefinitionGenerator
       {
         var genericParams = type.GetGenericArguments();
 
-        return string.Format("{0}<{1}>", _genericTypeReplacer.Replace(type.Name, ""), string.Join(", ", genericParams.Select(p => "T" + (p.GenericParameterPosition + 1))));
+        return string.Format("{0}<{1}>", _genericTypeReplacer.Replace(type.Name, ""), string.Join(", ", genericParams.Select(p => p.Name)));
       }
       else if (type.IsGenericType)
       {
+        var genericParams = tst.GenericArguments;
 
+        return string.Format("{0}<{1}>", _genericTypeReplacer.Replace(type.Name, ""), string.Join(", ", genericParams.Select(p => GetModuleName((dynamic)p) + GetTypeName((dynamic)p))));
       }
 
       return type.Name;
@@ -102,9 +121,55 @@ namespace TypeScriptDefinitionGenerator
       _sb.AppendLine("");
     }
 
+    private string GetPropertyComment(TypeScriptProperty p)
+    {
+      var obsolete = p.Property.GetCustomAttributes(typeof(ObsoleteAttribute), false).FirstOrDefault() as ObsoleteAttribute;
+
+      var comments = new List<string>();
+
+      if (obsolete != null)
+      {
+        comments.Add(string.Format("obsolete {0}", string.IsNullOrEmpty(obsolete.Message) ? "" : ": " + obsolete.Message));
+      }
+
+      var propertyComment = GetPropertyComment((dynamic)p.Type);
+
+      if (propertyComment != null)
+      {
+        comments.Add(propertyComment);
+      }
+
+      if (comments.Any())
+      {
+        return "// " + string.Join(", ", comments);
+      }
+
+      return "";
+    }
+
+    private string GetPropertyComment(DateTimeType p)
+    {
+      return p.ClrType.Name;
+    }
+
+    private string GetPropertyComment(TimeSpanType p)
+    {
+      return p.ClrType.Name;
+    }
+
+    private string GetPropertyComment(NumberType p)
+    {
+      return p.ClrType.Name;
+    }
+
+    private string GetPropertyComment(TypeScriptType p)
+    {
+      return null;
+    }
+
     private void Render(TypeScriptProperty p)
     {
-      _sb.AppendLine("{0}{3} : {1}{2};", p.Property.Name, GetModuleName((dynamic)p.Type), GetTypeName((dynamic)p.Type), HandleOptional(p.Type));
+      _sb.AppendLine("{0}{3} : {1}{2}; {4}", p.Property.Name, GetModuleName((dynamic)p.Type), GetTypeName((dynamic)p.Type), HandleOptional(p.Type), GetPropertyComment(p));
     }
 
     private string HandleOptional(TypeScriptType typeScriptType)
@@ -117,6 +182,11 @@ namespace TypeScriptDefinitionGenerator
       }
 
       return "";
+    }
+
+    private string GetModuleName(ArrayType type)
+    {
+      return GetModuleName((dynamic)type.ElementType);
     }
 
     private string GetModuleName(TypeScriptType type)
@@ -141,7 +211,10 @@ namespace TypeScriptDefinitionGenerator
         return "";
       }
 
-      return string.Format(" extends {0}{1}", GetModuleName((dynamic)type.BaseType), GetTypeName((dynamic)type.BaseType));
+      var baseType = string.Format(" extends {0}{1}", GetModuleName((dynamic)type.BaseType), GetTypeName((dynamic)type.BaseType));
+
+      return baseType;
+
     }
 
     private void Render(EnumType type)
@@ -154,7 +227,7 @@ namespace TypeScriptDefinitionGenerator
 
       int i = 0;
 
-      foreach(var val in values)
+      foreach (var val in values)
       {
         var name = names[i];
         i++;

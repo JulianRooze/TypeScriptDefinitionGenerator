@@ -99,6 +99,27 @@ namespace TypeScriptDefinitionGenerator
       return tst;
     }
 
+    private TypeScriptType ProcessTypeScriptType(Type t, DictionaryType tst)
+    {
+      if (tst.ClrType.IsGenericType)
+      {
+        var args = tst.ClrType.GetGenericArguments();
+
+        if (typeof(IDictionary).IsAssignableFrom(tst.ClrType) && args.Length == 2)
+        {
+          var keyTst = GetTypeScriptType(args[0]);
+
+          tst.ElementKeyType = ProcessTypeScriptType(args[0], (dynamic)keyTst);
+
+          var valueTst = GetTypeScriptType(args[1]);
+
+          tst.ElementValueType = ProcessTypeScriptType(args[1], (dynamic)valueTst);
+        }
+      }
+
+      return tst;
+    }
+
     private TypeScriptType ProcessTypeScriptType(Type t, EnumType tst)
     {
       TypeScriptType processedType;
@@ -108,6 +129,8 @@ namespace TypeScriptDefinitionGenerator
         processedType = tst;
 
         _processedTypes.Add(tst.ClrType, processedType);
+
+        tst.Module = _moduleNameGenerator(t);
       }
 
       return processedType;
@@ -119,45 +142,28 @@ namespace TypeScriptDefinitionGenerator
 
       if (!_processedTypes.TryGetValue(t, out processedType))
       {
-        _processedTypes.Add(t, tst);
+        if (!(t.IsGenericType && !t.IsGenericTypeDefinition))
+        {
+          _processedTypes.Add(t, tst);
+        }
+        else if (t.IsGenericType)
+        {
+          ProcessTypeScriptType(t.GetGenericTypeDefinition(), (dynamic)GetTypeScriptType(t.GetGenericTypeDefinition()));
+        }
 
         processedType = tst;
 
         //processedType = ProcessType(tst);
-        
+
         bool skippedBaseType;
 
         var baseType = GetBaseType(t, out skippedBaseType);
 
         if (baseType != null)
         {
-          if (baseType.IsGenericType)
-          {
-            var baseTypeGenericArguments = baseType.GetGenericArguments();
-            tst.BaseTypeGenericArguments = new List<TypeScriptType>();
-
-            foreach (var arg in baseTypeGenericArguments)
-            {
-              TypeScriptType baseGenericArgTst = ProcessTypeScriptType(arg, (dynamic)GetTypeScriptType(arg));
-
-              tst.BaseTypeGenericArguments.Add(baseGenericArgTst);
-            }
-
-            baseType = baseType.GetGenericTypeDefinition();
-          }
-
           if (_processBaseType(baseType))
           {
-            TypeScriptType processedBaseType;
-
-            if (!_processedTypes.TryGetValue(baseType, out processedBaseType))
-            {
-              var baseTst = new CustomType(baseType);
-
-              processedBaseType = ProcessTypeScriptType(baseType, baseTst);
-
-              //processedBaseType = ProcessType(baseTst);
-            }
+            var processedBaseType = ProcessTypeScriptType(baseType, (dynamic)GetTypeScriptType(baseType));
 
             tst.BaseType = processedBaseType;
           }
@@ -166,6 +172,21 @@ namespace TypeScriptDefinitionGenerator
         }
 
         ProcessProperties(tst);
+
+        tst.Module = _moduleNameGenerator(t);
+
+        if (t.IsGenericType && !t.IsGenericTypeDefinition)
+        {
+          var baseTypeGenericArguments = t.GetGenericArguments();
+          tst.GenericArguments = new List<TypeScriptType>();
+
+          foreach (var arg in baseTypeGenericArguments)
+          {
+            var baseGenericArgTst = ProcessTypeScriptType(arg, (dynamic)GetTypeScriptType(arg));
+
+            tst.GenericArguments.Add((TypeScriptType)baseGenericArgTst);
+          }
+        }
       }
 
       return processedType;
@@ -304,12 +325,6 @@ namespace TypeScriptDefinitionGenerator
         //ProcessType(tst);
       }
 
-      foreach (var type in _processedTypes.Where(kv => kv.Value is IModuleMember))
-      {
-        var moduleMember = (IModuleMember)type.Value;
-        moduleMember.Module = _moduleNameGenerator(type.Value.ClrType);
-      }
-
       var groupedByModule = _processedTypes.Values.OfType<IModuleMember>()
         .GroupBy(m => m.Module)
         .Select(m => new TypeScriptModule
@@ -318,7 +333,7 @@ namespace TypeScriptDefinitionGenerator
           ModuleMembers = m.ToList()
         }).ToList();
 
-      var finalOutut = new StringBuilder();
+      var finalOutput = new StringBuilder();
 
       foreach (var module in groupedByModule)
       {
@@ -326,11 +341,11 @@ namespace TypeScriptDefinitionGenerator
 
         var result = generator.Generate();
 
-        finalOutut.Append(result);
+        finalOutput.Append(result);
 
       }
 
-      var finalResult = finalOutut.ToString();
+      var finalResult = finalOutput.ToString();
 
       //Console.WriteLine(finalResult);
 

@@ -29,7 +29,7 @@ namespace TypeScriptDefinitionGeneratorTests
       var definition = (CustomType)modules[0].ModuleMembers.OfType<TypeScriptType>().Single(t => t.ClrType.Name == "NonGeneric1");
 
       definition.BaseType.ClrType.Should().Be(typeof(GenericBase1<>));
-      definition.BaseTypeGenericArguments[0].Should().BeOfType<StringType>();
+      definition.GenericArguments[0].Should().BeOfType<StringType>();
     }
 
     public class GenericBase2<T>
