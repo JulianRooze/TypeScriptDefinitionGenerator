@@ -1,13 +1,15 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace TypeScriptDefinitionGenerator
 {
-
   public class Generator
   {
     private IList<Type> _types;
@@ -16,24 +18,40 @@ namespace TypeScriptDefinitionGenerator
     private Func<Type, bool> _processType;
 
     private Dictionary<Type, TypeScriptType> _processedTypes = new Dictionary<Type, TypeScriptType>();
+    private Func<Type, string> _moduleNameGenerator;
 
-    public Generator(IEnumerable<Type> types, Func<Type, bool> processType, Func<Type, bool> processBaseType)
+    private HashSet<Type> _excludedTypes = new HashSet<Type>();
+
+    public Generator(params Type[] types)
+      : this(types, t => types.Any(x => x.Assembly == t.Assembly), t => types.Any(x => x.Assembly == t.Assembly), t => t.Namespace)
+    {
+
+    }
+
+    public Generator(IEnumerable<Type> types, Func<Type, bool> processType, Func<Type, bool> processBaseType, Func<Type, string> moduleNameGenerator)
     {
       _types = types.ToList();
       _processBaseType = processBaseType;
       _processType = processType;
+      _moduleNameGenerator = moduleNameGenerator;
     }
-
 
     private TypeScriptType ProcessType(CustomType tst)
     {
-      var properties = tst.Type.GetProperties();
+      //ProcessTypeScriptType(tst.ClrType, tst);
+
+      BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly;
+
+      if (tst.IncludeInheritedProperties)
+      {
+        flags = BindingFlags.Instance | BindingFlags.Public;
+      }
+
+      var properties = tst.ClrType.GetProperties(flags);
 
       foreach (var property in properties)
       {
-        var propertyTst = GetTypeScriptType(property.PropertyType);
-
-        ProcessTypeScriptType(property.PropertyType, (dynamic)propertyTst);
+        var propertyTst = ProcessTypeScriptType(property.PropertyType, (dynamic)GetTypeScriptType(property.PropertyType));
 
         tst.Properties.Add(new TypeScriptProperty
         {
@@ -42,49 +60,161 @@ namespace TypeScriptDefinitionGenerator
         });
       }
 
-      _processedTypes.Add(tst.Type, tst);
-
-      ProcessTypeScriptType(tst.Type, tst);
-
       return tst;
     }
 
-    private void ProcessTypeScriptType(Type t, ArrayType tst)
+    private void ProcessProperties(CustomType tst)
+    {
+      //ProcessTypeScriptType(tst.ClrType, tst);
+
+      BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly;
+
+      if (tst.IncludeInheritedProperties)
+      {
+        flags = BindingFlags.Instance | BindingFlags.Public;
+      }
+
+      var properties = tst.ClrType.GetProperties(flags);
+
+      foreach (var property in properties)
+      {
+        var propertyTst = ProcessTypeScriptType(property.PropertyType, (dynamic)GetTypeScriptType(property.PropertyType));
+
+        tst.Properties.Add(new TypeScriptProperty
+        {
+          Property = property,
+          Type = propertyTst
+        });
+      }
+    }
+
+    private TypeScriptType ProcessTypeScriptType(Type t, ArrayType tst)
     {
       var typeInside = TypeHelper.GetTypeInsideEnumerable(t);
 
       var typeInsideTst = GetTypeScriptType(typeInside);
 
       tst.ElementType = ProcessTypeScriptType(typeInside, (dynamic)typeInsideTst);
+
+      return tst;
+    }
+
+    private TypeScriptType ProcessTypeScriptType(Type t, EnumType tst)
+    {
+      TypeScriptType processedType;
+
+      if (!_processedTypes.TryGetValue(t, out processedType))
+      {
+        processedType = tst;
+
+        _processedTypes.Add(t, processedType);
+      }
+
+      return processedType;
     }
 
     private TypeScriptType ProcessTypeScriptType(Type t, CustomType tst)
     {
-      TypeScriptType existing;
+      TypeScriptType processedType;
 
-      if (!_processedTypes.TryGetValue(t, out existing))
+      if (!_processedTypes.TryGetValue(t, out processedType))
       {
-        ProcessType(tst);
+        _processedTypes.Add(t, tst);
+
+        processedType = tst;
+
+        //processedType = ProcessType(tst);
+        
+        bool skippedBaseType;
+
+        var baseType = GetBaseType(t, out skippedBaseType);
+
+        if (baseType != null)
+        {
+          if (baseType.IsGenericType)
+          {
+            var baseTypeGenericArguments = baseType.GetGenericArguments();
+            tst.BaseTypeGenericArguments = new List<TypeScriptType>();
+
+            foreach (var arg in baseTypeGenericArguments)
+            {
+              TypeScriptType baseGenericArgTst = ProcessTypeScriptType(arg, (dynamic)GetTypeScriptType(arg));
+
+              tst.BaseTypeGenericArguments.Add(baseGenericArgTst);
+            }
+
+            baseType = baseType.GetGenericTypeDefinition();
+          }
+
+          if (_processBaseType(baseType))
+          {
+            TypeScriptType processedBaseType;
+
+            if (!_processedTypes.TryGetValue(baseType, out processedBaseType))
+            {
+              var baseTst = new CustomType(baseType);
+
+              processedBaseType = ProcessTypeScriptType(baseType, baseTst);
+
+              //processedBaseType = ProcessType(baseTst);
+            }
+
+            tst.BaseType = processedBaseType;
+          }
+
+          tst.IncludeInheritedProperties = skippedBaseType;
+        }
+
+        ProcessProperties(tst);
       }
 
-      if (_processBaseType(t.BaseType))
+      return processedType;
+    }
+
+    private bool BaseTypeHasSameNameAsSubType(Type t, Type baseType)
+    {
+      var idx = baseType.Name.IndexOf('`');
+
+      if (idx > 0)
       {
-        if (!_processedTypes.TryGetValue(t.BaseType, out existing))
+        var baseTypename = baseType.Name.Substring(0, idx);
+
+        return baseTypename == t.Name;
+      }
+
+      return false;
+    }
+
+    private Type GetBaseType(Type t, out bool skippedBaseType)
+    {
+      skippedBaseType = false;
+
+      var baseType = t.BaseType;
+
+      while (baseType != null && baseType.IsGenericType)
+      {
+        var sameName = BaseTypeHasSameNameAsSubType(t, baseType);
+
+        if (sameName || _excludedTypes.Contains(baseType.GetGenericTypeDefinition()))
         {
-          var baseTst = new CustomType(t.BaseType);
+          skippedBaseType = true;
 
-          ProcessType(baseTst);
+          _excludedTypes.Add(baseType.GetGenericTypeDefinition());
 
-          tst.BaseType = baseTst;
+          baseType = baseType.BaseType;
+        }
+        else
+        {
+          break;
         }
       }
 
-      return existing;
+      return baseType;
     }
 
-    private void ProcessTypeScriptType(Type t, TypeScriptType tst)
+    private TypeScriptType ProcessTypeScriptType(Type t, TypeScriptType tst)
     {
-
+      return tst;
     }
 
     private TypeScriptType GetTypeScriptType(Type type)
@@ -113,15 +243,23 @@ namespace TypeScriptDefinitionGenerator
       {
         tst = new DateTimeType();
       }
-      else if (TypeHelper.IsEnumerable(type))
+      else if (TypeHelper.Is(type, typeof(TimeSpan)))
       {
-        tst = new ArrayType();
+        tst = new TimeSpanType();
+      }
+      else if (type.IsGenericParameter)
+      {
+        tst = new GenericTypeParameter();
       }
       else if (TypeHelper.IsDictionary(type))
       {
         tst = new DictionaryType();
       }
-      else if (type.IsEnum)
+      else if (TypeHelper.IsEnumerable(type))
+      {
+        tst = new ArrayType();
+      }
+      else if (TypeHelper.IsEnum(type))
       {
         tst = new EnumType();
       }
@@ -142,23 +280,63 @@ namespace TypeScriptDefinitionGenerator
       if (TypeHelper.IsNullableValueType(type))
       {
         ((ValueType)tst).IsNullable = true;
+        type = Nullable.GetUnderlyingType(type);
       }
+
+      tst.ClrType = type;
 
       return tst;
     }
 
     public void Generate()
     {
-      foreach (var type in _types)
-      {
-        var tst = new CustomType(type);
-
-        ProcessType(tst);
-      }
-
-      Console.WriteLine();
+      GenerateMapping();
     }
 
+    internal IList<TypeScriptModule> GenerateMapping()
+    {
+      foreach (var type in _types)
+      {
+        var tst = GetTypeScriptType(type);
 
+        ProcessTypeScriptType(type, (dynamic)tst);
+
+        //ProcessType(tst);
+      }
+
+      foreach (var type in _processedTypes.Where(kv => kv.Value is IModuleMember))
+      {
+        var moduleMember = (IModuleMember)type.Value;
+        moduleMember.Module = _moduleNameGenerator(type.Key);
+      }
+
+      var groupedByModule = _processedTypes.Values.OfType<IModuleMember>()
+        .GroupBy(m => m.Module)
+        .Select(m => new TypeScriptModule
+        {
+          Module = m.Key,
+          ModuleMembers = m.ToList()
+        }).ToList();
+
+      var finalOutut = new StringBuilder();
+
+      foreach (var module in groupedByModule)
+      {
+        var generator = new ModuleScriptGenerator(module);
+
+        var result = generator.Generate();
+
+        finalOutut.Append(result);
+
+      }
+
+      var finalResult = finalOutut.ToString();
+
+      Console.WriteLine(finalResult);
+
+      File.WriteAllText(@"E:\data\output.d.ts", finalResult);
+
+      return groupedByModule;
+    }
   }
 }

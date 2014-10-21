@@ -74,5 +74,15 @@ namespace TypeScriptDefinitionGenerator
       return types.Any(t => t.IsAssignableFrom(nullableType ?? type));
     }
 
+
+    internal static bool IsEnum(Type type)
+    {
+      if (type.IsEnum) return true;
+
+      var nullableType = Nullable.GetUnderlyingType(type);
+
+      return nullableType != null && nullableType.IsEnum;
+
+    }
   }
 }

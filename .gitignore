@@ -52,7 +52,7 @@ _ReSharper*/
 ~$*
 
 #Nuget packages
-src/packages/**/
+packages/**/
 !/packages/repositories.config
 publish*
 packer*

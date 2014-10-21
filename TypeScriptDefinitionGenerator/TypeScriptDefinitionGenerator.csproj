@@ -39,7 +39,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ScriptGenerator.cs" />
+    <Compile Include="IndentedStringBuilder.cs" />
+    <Compile Include="ModuleScriptGenerator.cs" />
     <Compile Include="TypeHelper.cs" />
     <Compile Include="Generator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

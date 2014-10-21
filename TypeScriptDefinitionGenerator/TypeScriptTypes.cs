@@ -9,6 +9,23 @@ namespace TypeScriptDefinitionGenerator
 {
   internal class TypeScriptType
   {
+    public Type ClrType { get; set; }
+  }
+
+  interface IModuleMember
+  {
+    string Module { get; set; }
+  }
+
+  internal class TypeScriptModule
+  {
+    public IList<IModuleMember> ModuleMembers { get; set; }
+
+    public string Module { get; set; }
+  }
+
+  internal class GenericTypeParameter : TypeScriptType
+  {
 
   }
 
@@ -37,6 +54,11 @@ namespace TypeScriptDefinitionGenerator
 
   }
 
+  internal class TimeSpanType : ValueType
+  {
+
+  }
+
   internal class DictionaryType : TypeScriptType
   {
 
@@ -47,9 +69,9 @@ namespace TypeScriptDefinitionGenerator
     public TypeScriptType ElementType { get; set; }
   }
 
-  internal class EnumType : ValueType
+  internal class EnumType : ValueType, IModuleMember
   {
-
+    public string Module { get; set; }
   }
 
   internal class TypeScriptProperty
@@ -63,19 +85,23 @@ namespace TypeScriptDefinitionGenerator
     }
   }
 
-  internal class CustomType : TypeScriptType
+  internal class CustomType : TypeScriptType, IModuleMember
   {
-    public Type Type { get; set; }
-
     public CustomType(Type t)
     {
-      this.Type = t;
+      this.ClrType = t;
       this.Properties = new List<TypeScriptProperty>();
     }
 
     public IList<TypeScriptProperty> Properties { get; set; }
 
     public TypeScriptType BaseType { get; set; }
+
+    public string Module { get; set; }
+
+    public IList<TypeScriptType> BaseTypeGenericArguments { get; set; }
+
+    public bool IncludeInheritedProperties { get; set; }
   }
 
   internal class AnyType : TypeScriptType
