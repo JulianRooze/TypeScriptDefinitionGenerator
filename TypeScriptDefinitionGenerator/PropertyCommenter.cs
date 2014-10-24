@@ -8,19 +8,21 @@ namespace TypeScriptDefinitionGenerator
 {
   internal class PropertyCommenter
   {
-    public string GetPropertyComment(DateTimeType p)
+    public string GetPropertyComment(ValueType p)
     {
-      return p.ClrType.Name;
+
+
+      return p.ClrType.Name + (p.IsNullable ? ", nullable" : "");
     }
 
-    public string GetPropertyComment(TimeSpanType p)
+    public string GetPropertyComment(BooleanType p)
     {
-      return p.ClrType.Name;
+      return null;
     }
 
-    public string GetPropertyComment(NumberType p)
+    public string GetPropertyComment(EnumType p)
     {
-      return p.ClrType.Name;
+      return null;
     }
 
     public string GetPropertyComment(TypeScriptType p)
