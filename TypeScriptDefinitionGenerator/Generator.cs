@@ -155,9 +155,26 @@ namespace TypeScriptDefinitionGenerator
 
         ProcessNestedType(t, tst);
 
+        ProcessInterfaces(t, tst);
+
       }
 
       return processedType;
+    }
+
+    private void ProcessInterfaces(Type t, CustomType tst)
+    {
+      var implementedInterfaces = t.BaseType != null ? t.GetInterfaces().Except(t.BaseType.GetInterfaces()) : t.GetInterfaces();
+
+      foreach (var implementedInterface in implementedInterfaces)
+      {
+        TypeScriptType processedInterfaceType = ProcessTypeScriptType(implementedInterface, (dynamic)GetTypeScriptType(implementedInterface));
+
+        if (processedInterfaceType is InterfaceType)
+        {
+          tst.ImplementedInterfaces.Add(processedInterfaceType);
+        }
+      }
     }
 
     private void ProcessNestedType(Type t, CustomType tst)
@@ -276,7 +293,14 @@ namespace TypeScriptDefinitionGenerator
 
         if (processType)
         {
-          tst = new CustomType(type);
+          if (type.IsInterface)
+          {
+            tst = new InterfaceType(type);
+          }
+          else
+          {
+            tst = new CustomType(type);
+          }
         }
         else
         {

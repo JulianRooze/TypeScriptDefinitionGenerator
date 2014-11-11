@@ -19,7 +19,7 @@ namespace TypeScriptDefinitionGenerator
     public ClassDefinitionsGenerator(IEnumerable<TypeScriptModule> modules)
     {
       _modules = modules;
-      _sb = new IndentedStringBuilder(modules.Sum(m => m.ModuleMembers.Count) * 256); 
+      _sb = new IndentedStringBuilder(modules.Sum(m => m.ModuleMembers.Count) * 256);
     }
 
     public IEnumerable<TypeScriptModule> Modules
@@ -55,7 +55,9 @@ namespace TypeScriptDefinitionGenerator
 
     private void Render(CustomType type)
     {
-      _sb.AppendLine("export class {0}{1} {{", _typeNameGenerator.GetTypeName(type), RenderBaseType(type));
+      var interfaceType = type as InterfaceType;
+
+      _sb.AppendLine("export {2} {0}{1} {3}{{", _typeNameGenerator.GetTypeName(type), RenderBaseType(type), interfaceType == null ? "class" : "interface", RenderInterfaces(type));
       _sb.IncreaseIndentation();
 
       foreach (var p in type.Properties)
@@ -97,6 +99,16 @@ namespace TypeScriptDefinitionGenerator
     private void Render(TypeScriptProperty p)
     {
       _sb.AppendLine("{0} : {1}{2}; {3}", p.Property.Name, _moduleNameGenerator.GetModuleName((dynamic)p.Type), _typeNameGenerator.GetTypeName((dynamic)p.Type), GetPropertyComment(p));
+    }
+
+    private string RenderInterfaces(CustomType type)
+    {
+      if (type.ImplementedInterfaces.Count == 0)
+      {
+        return "";
+      }
+
+      return string.Format("implements {0} ", string.Join(", ", type.ImplementedInterfaces.Select(i => string.Format("{0}{1}", _moduleNameGenerator.GetModuleName((dynamic)i), _typeNameGenerator.GetTypeName((dynamic)i)))));
     }
 
     private string RenderBaseType(CustomType type)

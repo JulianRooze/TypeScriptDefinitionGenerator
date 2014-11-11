@@ -19,7 +19,7 @@ namespace TypeScriptDefinitionGenerator
     public InterfaceDefinitionsGenerator(IEnumerable<TypeScriptModule> modules)
     {
       _modules = modules;
-      _sb = new IndentedStringBuilder(modules.Sum(m => m.ModuleMembers.Count) * 256); 
+      _sb = new IndentedStringBuilder(modules.Sum(m => m.ModuleMembers.Count) * 256);
     }
 
     public IEnumerable<TypeScriptModule> Modules
@@ -55,6 +55,8 @@ namespace TypeScriptDefinitionGenerator
 
     private void Render(CustomType type)
     {
+      var interfaceType = type as InterfaceType;
+
       _sb.AppendLine("interface {0}{1} {{", _typeNameGenerator.GetTypeName(type), RenderBaseType(type));
       _sb.IncreaseIndentation();
 
@@ -113,12 +115,21 @@ namespace TypeScriptDefinitionGenerator
 
     private string RenderBaseType(CustomType type)
     {
-      if (type.BaseType == null)
+      var baseTypes = new List<TypeScriptType>();
+
+      if (type.BaseType != null)
+      {
+        baseTypes.Add(type.BaseType);
+      }
+
+      baseTypes.AddRange(type.ImplementedInterfaces);
+
+      if (baseTypes.Count == 0)
       {
         return "";
       }
 
-      var baseType = string.Format(" extends {0}{1}", _moduleNameGenerator.GetModuleName((dynamic)type.BaseType), _typeNameGenerator.GetTypeName((dynamic)type.BaseType));
+      var baseType = string.Format(" extends {0}", string.Join(", ", baseTypes.Select(b => string.Format("{0}{1}", _moduleNameGenerator.GetModuleName((dynamic)b), _typeNameGenerator.GetTypeName((dynamic)b)))));
 
       return baseType;
     }

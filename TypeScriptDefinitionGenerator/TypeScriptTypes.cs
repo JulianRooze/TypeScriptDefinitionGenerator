@@ -98,6 +98,7 @@ namespace TypeScriptDefinitionGenerator
     {
       this.ClrType = t;
       this.Properties = new List<TypeScriptProperty>();
+      this.ImplementedInterfaces = new List<TypeScriptType>();
     }
 
     public IList<TypeScriptProperty> Properties { get; set; }
@@ -111,6 +112,13 @@ namespace TypeScriptDefinitionGenerator
     public bool IncludeInheritedProperties { get; set; }
 
     public TypeScriptType DeclaringType { get; set; }
+
+    public IList<TypeScriptType> ImplementedInterfaces { get; set; }
+  }
+
+  internal class InterfaceType : CustomType
+  {
+    public InterfaceType(Type t) : base(t) { }
   }
 
   internal class AnyType : TypeScriptType
